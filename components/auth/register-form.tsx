@@ -46,8 +46,8 @@ const registerFormSchema = z
     accountType: z.string({
       required_error: "Selecione um tipo de conta",
     }),
-    termsAccepted: z.literal(true, {
-      errorMap: () => ({ message: "Você deve aceitar os termos de uso" }),
+    termsAccepted: z.boolean().refine((val) => val === true, {
+      message: "Você deve aceitar os termos de uso",
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {
