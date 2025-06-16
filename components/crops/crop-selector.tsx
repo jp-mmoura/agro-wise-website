@@ -10,14 +10,14 @@ import { cn } from "@/lib/utils";
 const crops = [
   { id: "cafe", name: "Café", icon: "☕" },
   { id: "milho", name: "Milho", icon: "🌽" },
-  { id: "soja", name: "Soja", icon: "🫘" },
-  { id: "algodao", name: "Algodão", icon: "🧶" },
-  { id: "cana", name: "Cana-de-açúcar", icon: "🎋" },
-  { id: "feijao", name: "Feijão", icon: "🫘" },
-  { id: "arroz", name: "Arroz", icon: "🍚" },
+  { id: "soja", name: "Soja", icon: "🌿" },
 ];
 
-export function CropSelector() {
+interface CropSelectorProps {
+  onCropsChange?: (selectedCrops: string[]) => void;
+}
+
+export function CropSelector({ onCropsChange }: CropSelectorProps) {
   const [selectedCrops, setSelectedCrops] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -26,11 +26,12 @@ export function CropSelector() {
   );
 
   const toggleCrop = (cropId: string) => {
-    setSelectedCrops((prev) =>
-      prev.includes(cropId)
-        ? prev.filter((id) => id !== cropId)
-        : [...prev, cropId]
-    );
+    const newSelectedCrops = selectedCrops.includes(cropId)
+      ? selectedCrops.filter((id) => id !== cropId)
+      : [...selectedCrops, cropId];
+    
+    setSelectedCrops(newSelectedCrops);
+    onCropsChange?.(newSelectedCrops);
   };
 
   return (

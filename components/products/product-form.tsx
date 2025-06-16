@@ -1,291 +1,252 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/use-toast";
-import { useState } from "react";
-import { CalendarIcon, Loader2Icon } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 
-const productFormSchema = z.object({
-  name: z.string().min(1, "Nome do produto é obrigatório"),
-  manufacturer: z.string().min(1, "Fabricante é obrigatório"),
-  category: z.string({
-    required_error: "Selecione uma categoria",
-  }),
-  activeIngredient: z.string().min(1, "Princípio ativo é obrigatório"),
-  formulation: z.string().min(1, "Concentração/Formulação é obrigatória"),
-  registrationNumber: z.string().min(1, "Número de registro é obrigatório"),
-  expirationDate: z.date({
-    required_error: "Data de validade é obrigatória",
-  }),
-  storageRequirements: z.string().min(1, "Requisitos de armazenamento são obrigatórios"),
-  instructions: z.string().min(1, "Instruções de uso são obrigatórias"),
-  isDraft: z.boolean().default(false),
-});
+interface Crop {
+  id: string;
+  name: string;
+  icon: string;
+}
 
-type ProductFormValues = z.infer<typeof productFormSchema>;
+interface ActiveIngredient {
+  id: string;
+  name: string;
+  category: string;
+  crops: string[];
+}
 
 export function ProductForm() {
-  const [isLoading, setIsLoading] = useState(false);
-
-  const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productFormSchema),
-    defaultValues: {
-      isDraft: false,
-    },
+  const [isOpen, setIsOpen] = useState(false);
+  const [crops, setCrops] = useState<Crop[]>([]);
+  const [activeIngredients, setActiveIngredients] = useState<ActiveIngredient[]>([]);
+  const [selectedCrop, setSelectedCrop] = useState<string>("");
+  const [formData, setFormData] = useState({
+    name: "",
+    manufacturer: "",
+    category: "",
+    crop: "",
+    activeIngredient: "",
+    description: "",
+    dosage: "",
+    applicationMethod: "",
+    safetyPeriod: ""
   });
 
-  async function onSubmit(data: ProductFormValues) {
-    setIsLoading(true);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Buscar culturas
+        const cropsRef = collection(db, "crops");
+        const cropsSnapshot = await getDocs(cropsRef);
+        const cropsData = cropsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Crop[];
+        setCrops(cropsData);
+
+        // Buscar princípios ativos
+        const ingredientsRef = collection(db, "activeIngredients");
+        const ingredientsSnapshot = await getDocs(ingredientsRef);
+        const ingredientsData = ingredientsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as ActiveIngredient[];
+        setActiveIngredients(ingredientsData);
+      } catch (error) {
+        console.error("Erro ao buscar dados:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      // Aqui seria implementada a lógica de salvamento
-      console.log(data);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const productsRef = collection(db, "products");
+      await addDoc(productsRef, {
+        ...formData,
+        createdAt: new Date().toISOString()
+      });
       
-      toast({
-        title: "Produto salvo com sucesso",
-        description: data.isDraft 
-          ? "O produto foi salvo como rascunho."
-          : "O produto foi cadastrado com sucesso.",
+      // Limpar formulário e fechar modal
+      setFormData({
+        name: "",
+        manufacturer: "",
+        category: "",
+        crop: "",
+        activeIngredient: "",
+        description: "",
+        dosage: "",
+        applicationMethod: "",
+        safetyPeriod: ""
       });
+      setIsOpen(false);
+      
+      // Recarregar a página para atualizar a lista
+      window.location.reload();
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erro ao salvar produto",
-        description: "Ocorreu um erro ao tentar salvar o produto. Tente novamente.",
-      });
-    } finally {
-      setIsLoading(false);
+      console.error("Erro ao adicionar produto:", error);
     }
-  }
+  };
+
+  const handleCropChange = (value: string) => {
+    setSelectedCrop(value);
+    setFormData(prev => ({ ...prev, crop: value }));
+  };
+
+  const filteredActiveIngredients = activeIngredients.filter(
+    ingredient => ingredient.crops.includes(selectedCrop)
+  );
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nome do Produto</FormLabel>
-                <FormControl>
-                  <Input placeholder="Digite o nome do produto" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="manufacturer"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fabricante</FormLabel>
-                <FormControl>
-                  <Input placeholder="Digite o nome do fabricante" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button className="w-full">Adicionar Novo Produto</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Adicionar Novo Produto</DialogTitle>
+          <DialogDescription>
+            Preencha os dados do novo produto abaixo.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nome do Produto</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+          </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categoria</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma categoria" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="herbicida">Herbicida</SelectItem>
-                    <SelectItem value="inseticida">Inseticida</SelectItem>
-                    <SelectItem value="fungicida">Fungicida</SelectItem>
-                    <SelectItem value="fertilizante">Fertilizante</SelectItem>
-                    <SelectItem value="outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="manufacturer">Fabricante</Label>
+            <Input
+              id="manufacturer"
+              value={formData.manufacturer}
+              onChange={(e) => setFormData(prev => ({ ...prev, manufacturer: e.target.value }))}
+              required
+            />
+          </div>
 
-          <FormField
-            control={form.control}
-            name="activeIngredient"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Princípio Ativo</FormLabel>
-                <FormControl>
-                  <Input placeholder="Digite o princípio ativo" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="category">Categoria</Label>
+            <Select
+              value={formData.category}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="herbicida">Herbicida</SelectItem>
+                <SelectItem value="inseticida">Inseticida</SelectItem>
+                <SelectItem value="fungicida">Fungicida</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="formulation"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Concentração/Formulação</FormLabel>
-                <FormControl>
-                  <Input placeholder="Ex: 500 g/L" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="crop">Cultura</Label>
+            <Select
+              value={formData.crop}
+              onValueChange={handleCropChange}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione uma cultura" />
+              </SelectTrigger>
+              <SelectContent>
+                {crops.map((crop) => (
+                  <SelectItem key={crop.id} value={crop.id}>
+                    {crop.icon} {crop.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <FormField
-            control={form.control}
-            name="registrationNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Número de Registro</FormLabel>
-                <FormControl>
-                  <Input placeholder="Digite o número de registro" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="activeIngredient">Princípio Ativo</Label>
+            <Select
+              value={formData.activeIngredient}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, activeIngredient: value }))}
+              required
+              disabled={!selectedCrop}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um princípio ativo" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredActiveIngredients.map((ingredient) => (
+                  <SelectItem key={ingredient.id} value={ingredient.name}>
+                    {ingredient.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <FormField
-          control={form.control}
-          name="expirationDate"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Data de Validade</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-[240px] pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value ? (
-                        format(field.value, "PPP", { locale: ptBR })
-                      ) : (
-                        <span>Selecione uma data</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    disabled={(date) =>
-                      date < new Date() || date < new Date("1900-01-01")
-                    }
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              required
+            />
+          </div>
 
-        <FormField
-          control={form.control}
-          name="storageRequirements"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Requisitos de Armazenamento</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Descreva os requisitos de armazenamento"
-                  className="min-h-[100px]"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <div className="space-y-2">
+            <Label htmlFor="dosage">Dosagem</Label>
+            <Input
+              id="dosage"
+              value={formData.dosage}
+              onChange={(e) => setFormData(prev => ({ ...prev, dosage: e.target.value }))}
+              required
+            />
+          </div>
 
-        <FormField
-          control={form.control}
-          name="instructions"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Instruções de Uso</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Descreva as instruções de uso"
-                  className="min-h-[100px]"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+          <div className="space-y-2">
+            <Label htmlFor="applicationMethod">Método de Aplicação</Label>
+            <Input
+              id="applicationMethod"
+              value={formData.applicationMethod}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicationMethod: e.target.value }))}
+              required
+            />
+          </div>
 
-        <div className="flex items-center justify-end space-x-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => form.setValue("isDraft", true)}
-            disabled={isLoading}
-          >
-            Salvar como Rascunho
-          </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
-            {isLoading ? "Salvando..." : "Salvar Produto"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          <div className="space-y-2">
+            <Label htmlFor="safetyPeriod">Período de Carência</Label>
+            <Input
+              id="safetyPeriod"
+              value={formData.safetyPeriod}
+              onChange={(e) => setFormData(prev => ({ ...prev, safetyPeriod: e.target.value }))}
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit">Salvar</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
