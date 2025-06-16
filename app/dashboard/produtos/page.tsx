@@ -7,8 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { SearchIcon, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { ProductForm } from "@/components/products/product-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Product {
   id: string;
@@ -21,7 +25,7 @@ interface Product {
   dosage: string;
   applicationMethod: string;
   safetyPeriod: string;
-  createdAt: string;
+  price: number;
 }
 
 interface Crop {
@@ -37,6 +41,19 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [selectedCrop, setSelectedCrop] = useState("Todos");
   const [loading, setLoading] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    manufacturer: "",
+    category: "",
+    crop: "",
+    activeIngredient: "",
+    description: "",
+    dosage: "",
+    applicationMethod: "",
+    safetyPeriod: "",
+    price: ""
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,6 +99,57 @@ export default function ProductsPage() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const newProduct = {
+        ...formData,
+        price: parseFloat(formData.price.replace(/[^\d,-]/g, "").replace(",", ".")),
+        createdAt: new Date().toISOString()
+      };
+
+      const productsRef = collection(db, "products");
+      const docRef = await addDoc(productsRef, newProduct);
+      setProducts(prev => [{
+        id: docRef.id,
+        ...newProduct
+      }, ...prev]);
+
+      // Limpar formulário e fechar modal
+      setFormData({
+        name: "",
+        manufacturer: "",
+        category: "",
+        crop: "",
+        activeIngredient: "",
+        description: "",
+        dosage: "",
+        applicationMethod: "",
+        safetyPeriod: "",
+        price: ""
+      });
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Erro ao adicionar produto:", error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "products", id));
+      setProducts(prev => prev.filter(product => product.id !== id));
+    } catch (error) {
+      console.error("Erro ao deletar produto:", error);
+    }
+  };
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    }).format(price);
+  };
+
   const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name
       .toLowerCase()
@@ -112,7 +180,117 @@ export default function ProductsPage() {
         <p className="text-muted-foreground">
           Gerencie seus produtos e princípios ativos.
         </p>
-        <ProductForm onAdd={handleAddProduct} />
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button>Adicionar Produto</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Novo Produto</DialogTitle>
+              <DialogDescription>
+                Preencha os dados do novo produto abaixo.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome do Produto</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="manufacturer">Fabricante</Label>
+                <Input
+                  id="manufacturer"
+                  value={formData.manufacturer}
+                  onChange={(e) => setFormData(prev => ({ ...prev, manufacturer: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="herbicida">Herbicida</SelectItem>
+                    <SelectItem value="inseticida">Inseticida</SelectItem>
+                    <SelectItem value="fungicida">Fungicida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="price">Preço</Label>
+                <Input
+                  id="price"
+                  type="text"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="R$ 0,00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dosage">Dosagem</Label>
+                <Input
+                  id="dosage"
+                  value={formData.dosage}
+                  onChange={(e) => setFormData(prev => ({ ...prev, dosage: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="applicationMethod">Método de Aplicação</Label>
+                <Input
+                  id="applicationMethod"
+                  value={formData.applicationMethod}
+                  onChange={(e) => setFormData(prev => ({ ...prev, applicationMethod: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="safetyPeriod">Período de Carência</Label>
+                <Input
+                  id="safetyPeriod"
+                  value={formData.safetyPeriod}
+                  onChange={(e) => setFormData(prev => ({ ...prev, safetyPeriod: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Salvar</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="space-y-4">
@@ -166,42 +344,40 @@ export default function ProductsPage() {
           {filteredProducts.map((product) => {
             const crop = crops.find((c) => c.id === product.crop);
             return (
-              <div
-                key={product.id}
-                className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold">{product.name}</h3>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <Badge variant="secondary">{product.category}</Badge>
-                      <Badge variant="outline">
-                        {crop?.icon} {crop?.name}
-                      </Badge>
-                    </div>
+              <Card key={product.id}>
+                <CardHeader>
+                  <CardTitle>{product.name}</CardTitle>
+                  <CardDescription>
+                    {product.manufacturer} • {product.category}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <p className="text-sm">
+                      <span className="font-medium">Preço:</span> {formatPrice(product.price)}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Dosagem:</span> {product.dosage}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Método de Aplicação:</span> {product.applicationMethod}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Período de Carência:</span> {product.safetyPeriod}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{product.description}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {product.manufacturer}
-                  </p>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {product.description}
-                </p>
-                <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Dosagem:</span>{" "}
-                    {product.dosage}
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(product.id)}
+                    >
+                      Excluir
+                    </Button>
                   </div>
-                  <div>
-                    <span className="font-medium">Aplicação:</span>{" "}
-                    {product.applicationMethod}
-                  </div>
-                  <div>
-                    <span className="font-medium">Carência:</span>{" "}
-                    {product.safetyPeriod}
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>
