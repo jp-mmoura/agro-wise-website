@@ -68,13 +68,12 @@ export default function ProductsPage() {
       try {
         // Buscar produtos
         const productsRef = collection(db, "products");
-        const q = query(productsRef, orderBy("createdAt", "desc"));
-        const querySnapshot = await getDocs(q);
-        const productsList = querySnapshot.docs.map(doc => ({
+        const productsSnapshot = await getDocs(productsRef);
+        const productsData = productsSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as Product[];
-        setProducts(productsList);
+        setProducts(productsData);
 
         // Buscar culturas
         const cropsRef = collection(db, "crops");

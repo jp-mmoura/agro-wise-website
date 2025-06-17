@@ -14,6 +14,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { BellIcon, UserIcon } from "lucide-react";
+import { MobileNav } from "@/components/layout/mobile-nav";
 
 export function DashboardHeader() {
   const router = useRouter();
@@ -31,14 +32,19 @@ export function DashboardHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background">
+    <header className="sticky top-0 z-30 border-b bg-background">
       <div className="container flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <Logo className="h-6 w-6" />
-            <span className="hidden text-lg font-bold md:inline-block">
-              AgroWise
-            </span>
+            <div className="lg:hidden">
+              <MobileNav />
+            </div>
+            <div className="hidden lg:flex items-center gap-2">
+              <Logo className="h-6 w-6" />
+              <span className="text-lg font-bold">
+                AgroWise
+              </span>
+            </div>
           </div>
 
           <nav className="hidden md:flex md:gap-4">

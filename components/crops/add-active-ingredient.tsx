@@ -20,6 +20,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const crops = [
   { id: "cafe", name: "Café", icon: "☕" },
@@ -42,25 +44,33 @@ export function AddActiveIngredient({ onAdd }: AddActiveIngredientProps) {
     crops: [] as string[],
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const newIngredient = {
-      id: `custom-${Date.now()}`,
-      name: formData.name,
-      category: formData.category,
-      crops: formData.crops,
-      description: formData.description,
-    };
+    try {
+      // Salvar no Firestore
+      const ingredientsRef = collection(db, "activeIngredients");
+      const docRef = await addDoc(ingredientsRef, {
+        ...formData,
+        createdAt: new Date().toISOString()
+      });
 
-    onAdd(newIngredient);
-    setFormData({
-      name: "",
-      category: "",
-      description: "",
-      crops: [],
-    });
-    setIsOpen(false);
+      // Atualizar o estado local com o ID do documento
+      onAdd({
+        id: docRef.id,
+        ...formData
+      });
+
+      // Limpar formulário e fechar modal
+      setFormData({
+        name: "",
+        category: "",
+        crops: [],
+        description: ""
+      });
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Erro ao adicionar princípio ativo:", error);
+    }
   };
 
   const toggleCrop = (cropId: string) => {
